@@ -15,6 +15,8 @@ from nnunetv2.imageio.simpleitk_reader_writer import SimpleITKIO
 # the Evaluator class of the previous nnU-Net was great and all but man was it overengineered. Keep it simple
 from nnunetv2.utilities.json_export import recursive_fix_for_json_export
 from nnunetv2.utilities.plans_handling.plans_handler import PlansManager
+from nnunetv2.evaluation.cldice import clDice
+from nnunetv2.evaluation.betti_error import compute_betti_error
 
 
 def label_or_region_to_key(label_or_region: Union[int, Tuple[int]]):
@@ -33,7 +35,7 @@ def key_to_label_or_region(key: str):
 
 def save_summary_json(results: dict, output_file: str):
     """
-    json does not support tuples as keys (why does it have to be so shitty) so we need to convert that shit
+    stupid json does not support tuples as keys (why does it have to be so shitty) so we need to convert that shit
     ourselves
     """
     results_converted = deepcopy(results)
@@ -86,12 +88,17 @@ def compute_tp_fp_fn_tn(mask_ref: np.ndarray, mask_pred: np.ndarray, ignore_mask
     return tp, fp, fn, tn
 
 
+def compute_cldice(mask_ref: np.ndarray, mask_pred: np.ndarray, ignore_mask: np.ndarray = None):
+    return clDice(mask_ref, mask_pred)
+
+
 def compute_metrics(reference_file: str, prediction_file: str, image_reader_writer: BaseReaderWriter,
                     labels_or_regions: Union[List[int], List[Union[int, Tuple[int, ...]]]],
                     ignore_label: int = None) -> dict:
     # load images
     seg_ref, seg_ref_dict = image_reader_writer.read_seg(reference_file)
     seg_pred, seg_pred_dict = image_reader_writer.read_seg(prediction_file)
+    # spacing = seg_ref_dict['spacing']
 
     ignore_mask = seg_ref == ignore_label if ignore_label is not None else None
 
@@ -107,9 +114,13 @@ def compute_metrics(reference_file: str, prediction_file: str, image_reader_writ
         if tp + fp + fn == 0:
             results['metrics'][r]['Dice'] = np.nan
             results['metrics'][r]['IoU'] = np.nan
+            results['metrics'][r]['clDice'] = np.nan
+            results['metrics'][r]['bettiError'] = np.nan
         else:
             results['metrics'][r]['Dice'] = 2 * tp / (2 * tp + fp + fn)
             results['metrics'][r]['IoU'] = tp / (tp + fp + fn)
+            results['metrics'][r]['clDice'] = compute_cldice(mask_ref, mask_pred) 
+            results['metrics'][r]['bettiError'] = compute_betti_error(mask_ref, mask_pred) 
         results['metrics'][r]['FP'] = fp
         results['metrics'][r]['TP'] = tp
         results['metrics'][r]['FN'] = fn
@@ -135,7 +146,7 @@ def compute_metrics_on_folder(folder_ref: str, folder_pred: str, output_file: st
     files_ref = subfiles(folder_ref, suffix=file_ending, join=False)
     if not chill:
         present = [isfile(join(folder_pred, i)) for i in files_ref]
-        assert all(present), "Not all files in folder_ref exist in folder_pred"
+        assert all(present), "Not all files in folder_pred exist in folder_ref"
     files_ref = [join(folder_ref, i) for i in files_pred]
     files_pred = [join(folder_pred, i) for i in files_pred]
     with multiprocessing.get_context("spawn").Pool(num_processes) as pool:

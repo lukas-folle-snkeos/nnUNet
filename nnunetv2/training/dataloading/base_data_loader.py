@@ -17,9 +17,9 @@ class nnUNetDataLoaderBase(DataLoader):
                  oversample_foreground_percent: float = 0.0,
                  sampling_probabilities: Union[List[int], Tuple[int, ...], np.ndarray] = None,
                  pad_sides: Union[List[int], Tuple[int, ...], np.ndarray] = None,
-                 probabilistic_oversampling: bool = False,
-                 transforms=None):
+                 probabilistic_oversampling: bool = False):
         super().__init__(data, batch_size, 1, None, True, False, True, sampling_probabilities)
+        assert isinstance(data, nnUNetDataset), 'nnUNetDataLoaderBase only supports dictionaries as data'
         self.indices = list(data.keys())
 
         self.oversample_foreground_percent = oversample_foreground_percent
@@ -41,7 +41,6 @@ class nnUNetDataLoaderBase(DataLoader):
         self.has_ignore = label_manager.has_ignore_label
         self.get_do_oversample = self._oversample_last_XX_percent if not probabilistic_oversampling \
             else self._probabilistic_oversampling
-        self.transforms = transforms
 
     def _oversample_last_XX_percent(self, sample_idx: int) -> bool:
         """
@@ -88,9 +87,9 @@ class nnUNetDataLoaderBase(DataLoader):
         else:
             if not force_fg and self.has_ignore:
                 selected_class = self.annotated_classes_key
-                if class_locations is None or len(class_locations[selected_class]) == 0:
+                if len(class_locations[selected_class]) == 0:
                     # no annotated pixels in this case. Not good. But we can hardly skip it here
-                    # print('Warning! No annotated pixels in image!')
+                    print('Warning! No annotated pixels in image!')
                     selected_class = None
                 # print(f'I have ignore labels and want to pick a labeled area. annotated_classes_key: {self.annotated_classes_key}')
             elif force_fg:

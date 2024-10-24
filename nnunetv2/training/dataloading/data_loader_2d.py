@@ -1,7 +1,4 @@
 import numpy as np
-import torch
-from threadpoolctl import threadpool_limits
-
 from nnunetv2.training.dataloading.base_data_loader import nnUNetDataLoaderBase
 from nnunetv2.training.dataloading.nnunet_dataset import nnUNetDataset
 
@@ -24,8 +21,7 @@ class nnUNetDataLoader2D(nnUNetDataLoaderBase):
             # select a class/region first, then a slice where this class is present, then crop to that area
             if not force_fg:
                 if self.has_ignore:
-                    selected_class_or_region = self.annotated_classes_key if (
-                            len(properties['class_locations'][self.annotated_classes_key]) > 0) else None
+                    selected_class_or_region = self.annotated_classes_key
                 else:
                     selected_class_or_region = None
             else:
@@ -42,7 +38,6 @@ class nnUNetDataLoader2D(nnUNetDataLoaderBase):
 
                 selected_class_or_region = eligible_classes_or_regions[np.random.choice(len(eligible_classes_or_regions))] if \
                     len(eligible_classes_or_regions) > 0 else None
-
             if selected_class_or_region is not None:
                 selected_slice = np.random.choice(properties['class_locations'][selected_class_or_region][:, 1])
             else:
@@ -65,9 +60,8 @@ class nnUNetDataLoader2D(nnUNetDataLoaderBase):
             # print(properties)
             shape = data.shape[1:]
             dim = len(shape)
-            bbox_lbs, bbox_ubs = self.get_bbox(shape, force_fg if selected_class_or_region is not None else False,
+            bbox_lbs, bbox_ubs = self.get_bbox(shape, force_fg if selected_class_or_region is not None else None,
                                                class_locations, overwrite_class=selected_class_or_region)
-
 
             # whoever wrote this knew what he was doing (hint: it was me). We first crop the data to the region of the
             # bbox that actually lies within the data. This will result in a smaller array which is then faster to pad.
@@ -90,28 +84,7 @@ class nnUNetDataLoader2D(nnUNetDataLoaderBase):
             data_all[j] = np.pad(data, ((0, 0), *padding), 'constant', constant_values=0)
             seg_all[j] = np.pad(seg, ((0, 0), *padding), 'constant', constant_values=-1)
 
-        if self.transforms is not None:
-            with torch.no_grad():
-                with threadpool_limits(limits=1, user_api=None):
-
-                    data_all = torch.from_numpy(data_all).float()
-                    seg_all = torch.from_numpy(seg_all).to(torch.int16)
-                    images = []
-                    segs = []
-                    for b in range(self.batch_size):
-                        tmp = self.transforms(**{'image': data_all[b], 'segmentation': seg_all[b]})
-                        images.append(tmp['image'])
-                        segs.append(tmp['segmentation'])
-                    data_all = torch.stack(images)
-                    if isinstance(segs[0], list):
-                        seg_all = [torch.stack([s[i] for s in segs]) for i in range(len(segs[0]))]
-                    else:
-                        seg_all = torch.stack(segs)
-                    del segs, images
-
-            return {'data': data_all, 'target': seg_all, 'keys': selected_keys}
-
-        return {'data': data_all, 'target': seg_all, 'keys': selected_keys}
+        return {'data': data_all, 'seg': seg_all, 'properties': case_properties, 'keys': selected_keys}
 
 
 if __name__ == '__main__':

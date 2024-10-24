@@ -1,10 +1,11 @@
 import matplotlib
+import numpy as np
 from batchgenerators.utilities.file_and_folder_operations import join
 
 matplotlib.use('agg')
 import seaborn as sns
 import matplotlib.pyplot as plt
-
+from clearml import Logger
 
 class nnUNetLogger(object):
     """
@@ -14,7 +15,7 @@ class nnUNetLogger(object):
 
     YOU MUST LOG EXACTLY ONE VALUE PER EPOCH FOR EACH OF THE LOGGING ITEMS! DONT FUCK IT UP
     """
-    def __init__(self, verbose: bool = False):
+    def __init__(self, verbose: bool = False, clear_ml_logger: Logger = None):
         self.my_fantastic_logging = {
             'mean_fg_dice': list(),
             'ema_fg_dice': list(),
@@ -26,6 +27,7 @@ class nnUNetLogger(object):
             'epoch_end_timestamps': list()
         }
         self.verbose = verbose
+        self.clear_ml_logger = clear_ml_logger
         # shut up, this logging is great
 
     def log(self, key, value, epoch: int):
@@ -34,6 +36,19 @@ class nnUNetLogger(object):
         """
         assert key in self.my_fantastic_logging.keys() and isinstance(self.my_fantastic_logging[key], list), \
             'This function is only intended to log stuff to lists and to have one entry per epoch'
+
+        if self.clear_ml_logger is not None:
+            try:
+                if isinstance(value, list):
+                    # Attempt to calculate the mean of the list
+                    value_ = np.mean(value)
+                    # Log the value
+                    self.clear_ml_logger.report_scalar(key, key, value_, epoch)
+                else:
+                    self.clear_ml_logger.report_scalar(key, key, value, epoch)
+            except Exception as e:
+                # Skip logging this value if an error occurs
+                print(f"Skipping logging for {key} due to error: {e}")
 
         if self.verbose: print(f'logging {key}: {value} for epoch {epoch}')
 

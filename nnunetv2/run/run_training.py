@@ -1,4 +1,3 @@
-import multiprocessing
 import os
 import socket
 from typing import Union, Optional
@@ -15,6 +14,7 @@ from nnunetv2.utilities.dataset_name_id_conversion import maybe_convert_to_datas
 from nnunetv2.utilities.find_class_by_name import recursive_find_python_class
 from torch.backends import cudnn
 
+from clearml import Task
 
 def find_free_network_port() -> int:
     """Finds a free port on localhost.
@@ -35,7 +35,8 @@ def get_trainer_from_args(dataset_name_or_id: Union[int, str],
                           trainer_name: str = 'nnUNetTrainer',
                           plans_identifier: str = 'nnUNetPlans',
                           use_compressed: bool = False,
-                          device: torch.device = torch.device('cuda')):
+                          device: torch.device = torch.device('cuda'),
+                          clear_ml_task: Task = None):
     # load nnunet class and do sanity checks
     nnunet_trainer = recursive_find_python_class(join(nnunetv2.__path__[0], "training", "nnUNetTrainer"),
                                                 trainer_name, 'nnunetv2.training.nnUNetTrainer')
@@ -64,7 +65,11 @@ def get_trainer_from_args(dataset_name_or_id: Union[int, str],
     plans = load_json(plans_file)
     dataset_json = load_json(join(preprocessed_dataset_folder_base, 'dataset.json'))
     nnunet_trainer = nnunet_trainer(plans=plans, configuration=configuration, fold=fold,
-                                    dataset_json=dataset_json, unpack_dataset=not use_compressed, device=device)
+                                    dataset_json=dataset_json, unpack_dataset=not use_compressed, device=device,
+                                    clear_ml_task=clear_ml_task)
+
+    nnunet_trainer.print_params()
+
     return nnunet_trainer
 
 
@@ -148,13 +153,8 @@ def run_training(dataset_name_or_id: Union[str, int],
                  only_run_validation: bool = False,
                  disable_checkpointing: bool = False,
                  val_with_best: bool = False,
-                 device: torch.device = torch.device('cuda')):
-    if plans_identifier == 'nnUNetPlans':
-        print("\n############################\n"
-              "INFO: You are using the old nnU-Net default plans. We have updated our recommendations. "
-              "Please consider using those instead! "
-              "Read more here: https://github.com/MIC-DKFZ/nnUNet/blob/master/documentation/resenc_presets.md"
-              "\n############################\n")
+                 device: torch.device = torch.device('cuda'),
+                 clear_ml_task: Task = None):
     if isinstance(fold, str):
         if fold != 'all':
             try:
@@ -194,7 +194,8 @@ def run_training(dataset_name_or_id: Union[str, int],
                  join=True)
     else:
         nnunet_trainer = get_trainer_from_args(dataset_name_or_id, configuration, fold, trainer_class_name,
-                                               plans_identifier, use_compressed_data, device=device)
+                                               plans_identifier, use_compressed_data, device=device,
+                                               clear_ml_task=clear_ml_task)
 
         if disable_checkpointing:
             nnunet_trainer.disable_checkpointing = disable_checkpointing
@@ -278,8 +279,4 @@ def run_training_entry():
 
 
 if __name__ == '__main__':
-    os.environ['OMP_NUM_THREADS'] = '1'
-    os.environ['MKL_NUM_THREADS'] = '1'
-    os.environ['OPENBLAS_NUM_THREADS'] = '1'
-    # multiprocessing.set_start_method("spawn")
     run_training_entry()

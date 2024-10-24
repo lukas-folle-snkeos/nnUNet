@@ -1,27 +1,32 @@
 import torch
 from torch import autocast
+from nnunetv2.training.nnUNetTrainer.variants.optimizer.nnUNetTrainerAdam import nnUNetTrainerAdam3en4
 
-from nnunetv2.training.loss.compound_losses import DC_and_BCE_loss, DC_and_CE_loss
+from nnunetv2.training.loss.compound_losses import CL_and_DC_and_BCE_loss, CL_and_DC_and_CE_loss
 from nnunetv2.training.loss.dice import get_tp_fp_fn_tn, MemoryEfficientSoftDiceLoss
 from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 from nnunetv2.utilities.helpers import dummy_context
 from nnunetv2.utilities.label_handling.label_handling import determine_num_input_channels
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+torch.autograd.set_detect_anomaly(True)
 
-class nnUNetTrainerNoDeepSupervision(nnUNetTrainer):
+
+# We add our topological loss function to nnUnet
+
+class nnUNetTrainerEuler(nnUNetTrainerAdam3en4):
     def _build_loss(self):
         if self.label_manager.has_regions:
-            loss = DC_and_BCE_loss({},
+            loss = CL_and_DC_and_BCE_loss({},
                                    {'batch_dice': self.configuration_manager.batch_dice,
                                     'do_bg': True, 'smooth': 1e-5, 'ddp': self.is_ddp},
                                    use_ignore_label=self.label_manager.ignore_label is not None,
-                                   dice_class=MemoryEfficientSoftDiceLoss)
+                                   dice_class=MemoryEfficientSoftDiceLoss, cldice_version="euler")
         else:
-            loss = DC_and_CE_loss({'batch_dice': self.configuration_manager.batch_dice,
-                                   'smooth': 1e-5, 'do_bg': False, 'ddp': self.is_ddp}, {}, weight_ce=1, weight_dice=1,
+            loss = CL_and_DC_and_CE_loss({'batch_dice': self.configuration_manager.batch_dice,
+                                   'smooth': 1e-5, 'do_bg': False, 'ddp': self.is_ddp}, {},
                                   ignore_label=self.label_manager.ignore_label,
-                                  dice_class=MemoryEfficientSoftDiceLoss)
+                                  dice_class=MemoryEfficientSoftDiceLoss, cldice_version="euler")
         return loss
 
     def _get_deep_supervision_scales(self):

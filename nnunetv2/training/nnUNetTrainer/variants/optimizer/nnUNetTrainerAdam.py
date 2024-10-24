@@ -1,5 +1,6 @@
 import torch
 from torch.optim import Adam, AdamW
+from clearml import Task
 
 from nnunetv2.training.lr_scheduler.polylr import PolyLRScheduler
 from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
@@ -45,14 +46,14 @@ class nnUNetTrainerVanillaAdam3en4(nnUNetTrainerVanillaAdam):
 
 class nnUNetTrainerAdam1en3(nnUNetTrainerAdam):
     def __init__(self, plans: dict, configuration: str, fold: int, dataset_json: dict, unpack_dataset: bool = True,
-                 device: torch.device = torch.device('cuda')):
-        super().__init__(plans, configuration, fold, dataset_json, unpack_dataset, device)
+                 device: torch.device = torch.device('cuda'), clear_ml_task: Task = None):
+        super().__init__(plans, configuration, fold, dataset_json, unpack_dataset, device, clear_ml_task=clear_ml_task)
         self.initial_lr = 1e-3
 
 
 class nnUNetTrainerAdam3en4(nnUNetTrainerAdam):
     # https://twitter.com/karpathy/status/801621764144971776?lang=en
     def __init__(self, plans: dict, configuration: str, fold: int, dataset_json: dict, unpack_dataset: bool = True,
-                 device: torch.device = torch.device('cuda')):
-        super().__init__(plans, configuration, fold, dataset_json, unpack_dataset, device)
+                 device: torch.device = torch.device('cuda'), clear_ml_task: Task = None):
+        super().__init__(plans, configuration, fold, dataset_json, unpack_dataset, device, clear_ml_task=clear_ml_task)
         self.initial_lr = 3e-4
