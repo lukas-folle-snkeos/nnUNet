@@ -55,17 +55,17 @@ def get_trainer_from_args(
     )
 
     # handle dataset input. If it's an ID we need to convert to int from string
-    if dataset_name_or_id.startswith("Dataset"):
+    if dataset_name_or_id.startswith("Dataset"):  # type: ignore[union-attr]
         pass
     else:
         try:
             dataset_name_or_id = int(dataset_name_or_id)
-        except ValueError:
+        except ValueError as e:
             raise ValueError(
                 f"dataset_name_or_id must either be an integer or a valid dataset name with the pattern "
                 f"DatasetXXX_YYY where XXX are the three(!) task ID digits. Your "
                 f"input: {dataset_name_or_id}"
-            )
+            ) from e
 
     # initialize nnunet trainer
     preprocessed_dataset_folder_base = join(nnUNet_preprocessed, maybe_convert_to_dataset_name(dataset_name_or_id))
@@ -88,7 +88,10 @@ def get_trainer_from_args(
 
 
 def maybe_load_checkpoint(
-    nnunet_trainer: nnUNetTrainer, continue_training: bool, validation_only: bool, pretrained_weights_file: str = None
+    nnunet_trainer: nnUNetTrainer,
+    continue_training: bool,
+    validation_only: bool,
+    pretrained_weights_file: str | None = None,
 ):
     if continue_training and pretrained_weights_file is not None:
         raise RuntimeError(
@@ -238,7 +241,7 @@ def run_training(
         nnunet_trainer = get_trainer_from_args(
             dataset_name_or_id,
             configuration,
-            fold,
+            fold,  # type: ignore[arg-type]
             trainer_class_name,
             plans_identifier,
             use_compressed_data,
